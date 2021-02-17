@@ -1,5 +1,10 @@
-dist
-node_modules
+.idea/
+.vscode/
+node_modules/
+build/
+tmp/
+temp/
+dist/
 .env
 .env.prod
 yarn-error.log

@@ -1,9 +1,8 @@
-import { Router, Request, Response } from 'express';
+import { Router } from 'express';
+import WhatsappController from '@/app/controllers/WhatsappController'
 
 const whatsappRoutes = Router();
 
-whatsappRoutes.get('/', async (request: Request, response: Response) => {
-  return response.json({"ok": true});
-});
+whatsappRoutes.get('/', WhatsappController.index);
 
 export default whatsappRoutes;

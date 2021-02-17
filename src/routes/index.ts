@@ -1,4 +1,5 @@
-import { Router, Request, Response } from 'express';
+import { Request, Response, Router } from 'express';
+
 import whatsappRoutes from './whatsappRoutes';
 
 const routes = Router();

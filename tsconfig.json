@@ -19,14 +19,7 @@
     "skipLibCheck": true,                     
     "forceConsistentCasingInFileNames": true ,
     "paths": {
-      "@controller/*":["./src/controller/*"],
-      "@entity/*":["./src/entity/*"],
-      "@config/*":["./src/config/*"],
-      "@global/*":["./src/global/*"],
-      "@database/*":["./src/database/*"],
-      "@errors/*":["./src/errors/*"],
-      "@services/*":["./src/services/*"],
-      "@repository/*":["./src/repository/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": [

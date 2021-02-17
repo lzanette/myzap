@@ -1,13 +1,14 @@
 import 'reflect-metadata';
-import cors from 'cors';
-import express, { Request, Response, NextFunction } from 'express';
-import 'express-async-errors';
-import { serverConfig } from '@config/index';
-import AppErrors from '@errors/AppErrors';
-import routes from './routes';
+import './database';
 
-import swaggerUI from 'swagger-ui-express'
-import specs from './swagger'
+import express, { NextFunction, Request, Response } from 'express';
+
+import AppErrors from '@/app/errors/AppErrors';
+import cors from 'cors';
+import routes from '@/routes';
+import { serverConfig } from '@/config/index';
+import specs from './swagger';
+import swaggerUI from 'swagger-ui-express';
 
 const server = express();
 

@@ -14,11 +14,13 @@
     "Contracts": "contracts"
   },
   "preloads": [
+    "./start/socket",
     "./start/routes",
     "./start/kernel"
   ],
   "providers": [
     "./providers/AppProvider",
+    "./providers/SocketIOProvider",
     "@adonisjs/core",
     "@adonisjs/lucid",
     "@adonisjs/auth"

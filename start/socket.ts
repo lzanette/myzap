@@ -4,7 +4,4 @@ SocketIO.afterStart(() => {
   io.on('connection', function (socket) {
     console.log(socket.id);
   });
-  io.of('/rouletteGame').on('connection', function (socket) {
-    console.log(socket.id);
-  });
 });

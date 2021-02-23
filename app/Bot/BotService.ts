@@ -1,6 +1,7 @@
 import SocketIO from '@ioc:Socket.IO';
 import Bot from 'App/Models/Bot';
 import Webhook, { WebhookStatus } from 'App/Models/Webhook';
+import qrcode from 'qrcode-terminal';
 import { Client, ClientSession, Message } from 'whatsapp-web.js';
 
 class BotService {
@@ -8,7 +9,12 @@ class BotService {
   private webhooks: Array<NodeJS.Timeout> = [];
 
   async init(bot: Bot) {
-    console.log(`INSTANCE BOT#${bot.id} ${bot.name}`);
+    if (this.sessions[bot.id] instanceof Client) {
+      console.log(`[BOT#${bot.id}] ALREADY CONNECTED`);
+      return;
+    }
+
+    console.log(`[BOT#${bot.id}] INITIALIZE`);
 
     this.sessions[bot.id] = this.instanceBot(bot);
 
@@ -44,7 +50,8 @@ class BotService {
   }
 
   private async ready(bot: Bot) {
-    console.log('READY');
+    console.log(`[BOT#${bot.id}] READY`);
+
     bot.wastate = 'CONNECTED';
     bot.save();
 
@@ -68,19 +75,16 @@ class BotService {
 
   private generateQr(bot: Bot, qr: string) {
     SocketIO.io().emit(`BOT#${bot.id}`, qr);
+    qrcode.generate(qr, { small: true });
   }
 
   private authenticated(bot: Bot, browserSessionToken: ClientSession) {
-    console.log('AUTHENTICATED');
-
     bot.session = JSON.stringify(browserSessionToken);
     bot.status = 'AUTHENTICATED';
     bot.save();
   }
 
   private async authFailure(bot: Bot, message: string) {
-    console.log('AUTH_FAILURE', message);
-
     this.sessions[bot.id]?.destroy();
 
     bot.status = 'AUTH_FAILURE';
@@ -96,15 +100,17 @@ class BotService {
   }
 
   private async disconnected(bot: Bot) {
+    console.log(`[BOT#${bot.id}] DISCONNECTED`);
+
     bot.session = null;
     bot.save();
 
     clearInterval(this.webhooks[bot.id]);
-    this.sessions[bot.id].logout();
+    this.sessions[bot.id].destroy();
   }
 
   private async message(bot: Bot, message: Message) {
-    console.log('MESSAGE RECEIVED', message);
+    console.log(`[BOT#${bot.id}] MESSAGE RECEIVED`, message);
   }
 }
 

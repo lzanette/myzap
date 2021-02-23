@@ -1,82 +1,111 @@
+import SocketIO from '@ioc:Socket.IO';
 import Bot from 'App/Models/Bot';
-import Ws from 'App/Services/Ws';
+import Webhook, { WebhookStatus } from 'App/Models/Webhook';
 import { Client, ClientSession, Message } from 'whatsapp-web.js';
 
-const qrcode = require('qrcode-terminal');
-
 class BotService {
-  private client: Client;
+  private sessions: Array<Client> = [];
+  private webhooks: Array<NodeJS.Timeout> = [];
 
-  constructor(private readonly bot: Bot) {
-    // this.repository = getCustomRepository(SessionRepository)
-  }
+  async init(bot: Bot) {
+    console.log(`INSTANCE BOT#${bot.id} ${bot.name}`);
 
-  async init() {
-    console.log(`INSTANCE BOT#${this.bot.id} ${this.bot.name}`);
+    this.sessions[bot.id] = this.instanceBot(bot);
 
-    this.client = this.instanceBot(this.bot);
+    this.sessions[bot.id].on('qr', this.generateQr.bind(this, bot));
 
-    this.client.on('qr', this.generateQr.bind(this));
+    this.sessions[bot.id].on('authenticated', this.authenticated.bind(this, bot));
 
-    this.client.on('authenticated', this.authenticated.bind(this));
+    this.sessions[bot.id].on('auth_failure', this.authFailure.bind(this, bot));
 
-    this.client.on('auth_failure', this.authFailure.bind(this));
+    this.sessions[bot.id].on('ready', this.ready.bind(this, bot));
 
-    this.client.on('ready', this.ready);
+    this.sessions[bot.id].on('message', this.message.bind(this, bot));
 
-    this.client.on('message', this.message.bind(this));
+    this.sessions[bot.id].on('disconnected', this.disconnected.bind(this, bot));
+
+    this.sessions[bot.id].on('change_state', this.changeState.bind(this, bot));
+
+    this.sessions[bot.id].initialize();
   }
 
   private instanceBot(bot: Bot): Client {
-    Ws.start((socket) => {
-      console.log(socket.local);
-    });
-
     const client = new Client({
       puppeteer: {
         headless: true,
         defaultViewport: null,
       },
-      session: <ClientSession>bot.session || null,
+      restartOnAuthFail: true,
+      takeoverOnConflict: true,
+      session: bot.session ? <ClientSession>JSON.parse(bot.session) : undefined,
     });
-
-    client.initialize();
 
     return client;
   }
 
-  private ready() {
+  private async ready(bot: Bot) {
     console.log('READY');
+    bot.wastate = 'CONNECTED';
+    bot.save();
+
+    this.webhooks[bot.id] = setInterval(this.sendWebhooks.bind(this, bot), 5 * 1000);
   }
 
-  private generateQr(qr: string) {
-    // this.session.qrcode = qr;
-    // this.repository.save(this.session);
-    Ws.io.emit(`BOT#${this.bot.id}`, qr);
+  private async sendWebhooks(bot: Bot) {
+    const webhooks = await bot.related('webhooks').query().where('status', WebhookStatus.QUEUE);
 
-    qrcode.generate(qr, { small: true });
+    webhooks.forEach(async (webhook: Webhook) => {
+      try {
+        await this.sessions[bot.id].sendMessage(`${webhook.number}@c.us`, webhook.content);
+        webhook.status = WebhookStatus.SEND;
+      } catch (e) {
+        webhook.status = WebhookStatus.ERROR;
+      } finally {
+        webhook.save();
+      }
+    });
   }
 
-  private authenticated(browserSessionToken: ClientSession) {
+  private generateQr(bot: Bot, qr: string) {
+    SocketIO.io().emit(`BOT#${bot.id}`, qr);
+  }
+
+  private authenticated(bot: Bot, browserSessionToken: ClientSession) {
     console.log('AUTHENTICATED');
 
-    this.bot.session = browserSessionToken;
-    this.bot.save();
+    bot.session = JSON.stringify(browserSessionToken);
+    bot.status = 'AUTHENTICATED';
+    bot.save();
   }
 
-  private async authFailure(message: string) {
+  private async authFailure(bot: Bot, message: string) {
     console.log('AUTH_FAILURE', message);
 
-    // await this.client.destroy();
-    // this.session.browserSessionToken = null;
-    // await this.repository.save(this.session);
+    this.sessions[bot.id]?.destroy();
 
-    // this.init(this.session.name);
+    bot.status = 'AUTH_FAILURE';
+    bot.session = null;
+    bot.save();
+
+    this.init(bot);
   }
 
-  private message(message: Message) {
+  private async changeState(bot: Bot, state) {
+    bot.wastate = state;
+    bot.save();
+  }
+
+  private async disconnected(bot: Bot) {
+    bot.session = null;
+    bot.save();
+
+    clearInterval(this.webhooks[bot.id]);
+    this.sessions[bot.id].logout();
+  }
+
+  private async message(bot: Bot, message: Message) {
     console.log('MESSAGE RECEIVED', message);
   }
 }
 
-export default BotService;
+export default new BotService();

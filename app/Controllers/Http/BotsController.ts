@@ -17,6 +17,14 @@ export default class BotsController {
     response.json({ ok: true });
   }
 
+  public async stop({ params, response }: HttpContextContract) {
+    const bot = await Bot.findByOrFail('token', params.id);
+
+    await BotService.stop(bot);
+
+    response.json({ ok: true });
+  }
+
   public async store({ request, response, auth }: HttpContextContract) {
     const data = request.only(['name', 'description']);
 

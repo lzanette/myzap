@@ -18,6 +18,8 @@ class BotService {
 
     this.sessions[bot.id] = this.instanceBot(bot);
 
+    console.log(this.sessions[bot.id].eventNames());
+    this.sessions[bot.id].on('', console.log);
     this.sessions[bot.id].on('qr', this.generateQr.bind(this, bot));
 
     this.sessions[bot.id].on('authenticated', this.authenticated.bind(this, bot));
@@ -56,6 +58,7 @@ class BotService {
     bot.save();
 
     this.webhooks[bot.id] = setInterval(this.sendWebhooks.bind(this, bot), 5 * 1000);
+    SocketIO.io().emit(`BOT#${bot.id}#STATE`, 'CONNECTED');
   }
 
   private async sendWebhooks(bot: Bot) {
@@ -74,14 +77,16 @@ class BotService {
   }
 
   private generateQr(bot: Bot, qr: string) {
-    SocketIO.io().emit(`BOT#${bot.id}`, qr);
+    SocketIO.io().emit(`BOT#${bot.id}#QRCODE`, qr);
     qrcode.generate(qr, { small: true });
   }
 
   private authenticated(bot: Bot, browserSessionToken: ClientSession) {
     bot.session = JSON.stringify(browserSessionToken);
-    bot.status = 'AUTHENTICATED';
+    bot.status = '';
     bot.save();
+
+    SocketIO.io().emit(`BOT#${bot.id}#STATE`, 'AUTHENTICATED');
   }
 
   private async authFailure(bot: Bot, message: string) {
@@ -91,26 +96,36 @@ class BotService {
     bot.session = null;
     bot.save();
 
+    SocketIO.io().emit(`BOT#${bot.id}#STATUS`, 'AUTH_FAILURE');
+
     this.init(bot);
   }
 
   private async changeState(bot: Bot, state) {
     bot.wastate = state;
     bot.save();
+
+    SocketIO.io().emit(`BOT#${bot.id}#STATE`, state);
   }
 
   private async disconnected(bot: Bot) {
     console.log(`[BOT#${bot.id}] DISCONNECTED`);
 
+    bot.status = 'DISCONNECTED';
     bot.session = null;
     bot.save();
 
     clearInterval(this.webhooks[bot.id]);
     this.sessions[bot.id].destroy();
+
+    delete this.sessions[bot.id];
+
+    SocketIO.io().emit(`BOT#${bot.id}#STATUS`, 'DISCONNECTED');
   }
 
   private async message(bot: Bot, message: Message) {
-    console.log(`[BOT#${bot.id}] MESSAGE RECEIVED`, message);
+    console.log(`[BOT#${bot.id}] MESSAGE RECEIVED: ${message.body} FROM: ${message.from}`);
+    SocketIO.io().emit(`BOT#${bot.id}#MESSAGE`, message);
   }
 }
 
